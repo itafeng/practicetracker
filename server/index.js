@@ -223,6 +223,110 @@ app.get('/api/categories', (req, res) => {
   }
 });
 
+// Add a new problem (with optional new category/subcategory)
+app.post('/api/problems', (req, res) => {
+  try {
+    const {
+      title,
+      leetcode_url,
+      difficulty,
+      category_id,
+      category_name,
+      subcategory_id,
+      subcategory_name
+    } = req.body;
+
+    const trimmedTitle = title?.trim();
+    if (!trimmedTitle) {
+      return res.status(400).json({ error: 'title is required' });
+    }
+
+    const normalizedDifficulty = difficulty?.trim();
+    const allowedDifficulties = ['Easy', 'Medium', 'Hard'];
+    if (!allowedDifficulties.includes(normalizedDifficulty)) {
+      return res.status(400).json({ error: 'difficulty must be Easy, Medium, or Hard' });
+    }
+
+    const resolvedCategoryName = category_name?.trim();
+    if (!category_id && !resolvedCategoryName) {
+      return res.status(400).json({ error: 'category_id or category_name is required' });
+    }
+
+    const resolvedSubcategoryName = (subcategory_name && subcategory_name.trim()) || 'General';
+
+    const result = db.addProblemWithPlacement({
+      title: trimmedTitle,
+      leetcodeUrl: leetcode_url?.trim() || null,
+      difficulty: normalizedDifficulty,
+      categoryId: category_id || null,
+      categoryName: resolvedCategoryName || null,
+      subcategoryId: subcategory_id || null,
+      subcategoryName: resolvedSubcategoryName
+    });
+
+    res.status(result.existing ? 200 : 201).json({
+      id: result.id,
+      category_id: result.category_id,
+      subcategory_id: result.subcategory_id,
+      existing: result.existing
+    });
+  } catch (error) {
+    console.error('Error adding problem:', error);
+    res.status(500).json({ error: 'Failed to add problem' });
+  }
+});
+
+// Get a study plan by slug (e.g., top-interview-150)
+app.get('/api/lists/:slug', (req, res) => {
+  try {
+    const plan = db.getStudyPlan(req.params.slug);
+    if (!plan) {
+      return res.status(404).json({ error: 'Study plan not found' });
+    }
+
+    const rows = db.getStudyPlanProblems(plan.id);
+
+    const sections = {};
+    rows.forEach(row => {
+      if (!sections[row.section_name]) {
+        sections[row.section_name] = {
+          name: row.section_name,
+          order: row.section_order,
+          problems: []
+        };
+      }
+
+      let history = [];
+      try {
+        const parsed = JSON.parse(row.history);
+        history = parsed.filter(h => h.id !== null);
+      } catch (e) {
+        history = [];
+      }
+
+      sections[row.section_name].problems.push({
+        id: row.id,
+        title: row.title,
+        leetcode_url: row.leetcode_url,
+        difficulty: row.difficulty,
+        history: history
+      });
+    });
+
+    const sortedSections = Object.values(sections).sort((a, b) => a.order - b.order);
+
+    res.json({
+      name: plan.name,
+      slug: plan.slug,
+      description: plan.description,
+      sections: sortedSections
+    });
+  } catch (error) {
+    console.error('Error fetching study plan:', error);
+    res.status(500).json({ error: 'Failed to fetch study plan' });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

@@ -52,6 +52,33 @@ export function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_practice_problem ON practice_history(problem_id);
     CREATE INDEX IF NOT EXISTS idx_practice_date ON practice_history(completed_at);
+
+    CREATE TABLE IF NOT EXISTS study_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS study_plan_sections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      plan_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      order_index INTEGER NOT NULL,
+      FOREIGN KEY (plan_id) REFERENCES study_plans(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS study_plan_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      section_id INTEGER NOT NULL,
+      problem_id INTEGER NOT NULL,
+      order_index INTEGER NOT NULL,
+      FOREIGN KEY (section_id) REFERENCES study_plan_sections(id) ON DELETE CASCADE,
+      FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plan_items_section ON study_plan_items(section_id);
+    CREATE INDEX IF NOT EXISTS idx_plan_items_problem ON study_plan_items(problem_id);
   `);
 
   console.log('Database initialized successfully');
@@ -227,20 +254,180 @@ export function getAllCategoriesWithSubcategories() {
   return stmt.all();
 }
 
+function getCategoryByName(name) {
+  const stmt = db.prepare('SELECT id, name, order_index FROM categories WHERE name = ?');
+  return stmt.get(name);
+}
+
+function getSubcategoryByName(categoryId, name) {
+  const stmt = db.prepare('SELECT id, name, order_index FROM subcategories WHERE category_id = ? AND name = ?');
+  return stmt.get(categoryId, name);
+}
+
+function getMaxCategoryOrder() {
+  const stmt = db.prepare('SELECT COALESCE(MAX(order_index), 0) as max_order FROM categories');
+  return stmt.get().max_order || 0;
+}
+
+function getMaxSubcategoryOrder(categoryId) {
+  const stmt = db.prepare('SELECT COALESCE(MAX(order_index), 0) as max_order FROM subcategories WHERE category_id = ?');
+  return stmt.get(categoryId).max_order || 0;
+}
+
+function getMaxProblemOrder(subcategoryId) {
+  const stmt = db.prepare('SELECT COALESCE(MAX(order_index), 0) as max_order FROM problems WHERE subcategory_id = ?');
+  return stmt.get(subcategoryId).max_order || 0;
+}
+
+function getProblemByTitle(subcategoryId, title) {
+  const stmt = db.prepare('SELECT id FROM problems WHERE subcategory_id = ? AND title = ?');
+  return stmt.get(subcategoryId, title);
+}
+
+export function addProblemWithPlacement({
+  title,
+  leetcodeUrl,
+  difficulty,
+  categoryId,
+  categoryName,
+  subcategoryId,
+  subcategoryName
+}) {
+  const action = db.transaction(() => {
+    let resolvedCategoryId = categoryId || null;
+    if (!resolvedCategoryId) {
+      const existingCategory = getCategoryByName(categoryName);
+      if (existingCategory) {
+        resolvedCategoryId = existingCategory.id;
+      } else {
+        const nextCategoryOrder = getMaxCategoryOrder() + 1;
+        const result = insertCategory(categoryName, nextCategoryOrder);
+        resolvedCategoryId = Number(result.lastInsertRowid) || getCategoryByName(categoryName)?.id;
+      }
+    }
+
+    let resolvedSubcategoryId = subcategoryId || null;
+    if (!resolvedSubcategoryId) {
+      const existingSubcategory = getSubcategoryByName(resolvedCategoryId, subcategoryName);
+      if (existingSubcategory) {
+        resolvedSubcategoryId = existingSubcategory.id;
+      } else {
+        const nextSubcategoryOrder = getMaxSubcategoryOrder(resolvedCategoryId) + 1;
+        const result = insertSubcategory(resolvedCategoryId, subcategoryName, null, nextSubcategoryOrder);
+        resolvedSubcategoryId = Number(result.lastInsertRowid) || getSubcategoryByName(resolvedCategoryId, subcategoryName)?.id;
+      }
+    }
+
+    const existingProblem = getProblemByTitle(resolvedSubcategoryId, title);
+    if (existingProblem) {
+      return {
+        id: existingProblem.id,
+        category_id: resolvedCategoryId,
+        subcategory_id: resolvedSubcategoryId,
+        existing: true
+      };
+    }
+
+    const nextProblemOrder = getMaxProblemOrder(resolvedSubcategoryId) + 1;
+    const insertResult = insertProblem(resolvedSubcategoryId, title, leetcodeUrl, difficulty, nextProblemOrder);
+    return {
+      id: Number(insertResult.lastInsertRowid),
+      category_id: resolvedCategoryId,
+      subcategory_id: resolvedSubcategoryId,
+      existing: false
+    };
+  });
+
+  return action();
+}
+
 // Seed data functions
 export function insertCategory(name, orderIndex) {
-  const stmt = db.prepare('INSERT INTO categories (name, order_index) VALUES (?, ?)');
+  const stmt = db.prepare('INSERT OR IGNORE INTO categories (name, order_index) VALUES (?, ?)');
   return stmt.run(name, orderIndex);
 }
 
 export function insertSubcategory(categoryId, name, description, orderIndex) {
-  const stmt = db.prepare('INSERT INTO subcategories (category_id, name, description, order_index) VALUES (?, ?, ?, ?)');
+  const stmt = db.prepare('INSERT OR IGNORE INTO subcategories (category_id, name, description, order_index) VALUES (?, ?, ?, ?)');
   return stmt.run(categoryId, name, description, orderIndex);
 }
 
 export function insertProblem(subcategoryId, title, leetcodeUrl, difficulty, orderIndex) {
-  const stmt = db.prepare('INSERT INTO problems (subcategory_id, title, leetcode_url, difficulty, order_index) VALUES (?, ?, ?, ?, ?)');
+  const stmt = db.prepare('INSERT OR IGNORE INTO problems (subcategory_id, title, leetcode_url, difficulty, order_index) VALUES (?, ?, ?, ?, ?)');
   return stmt.run(subcategoryId, title, leetcodeUrl, difficulty, orderIndex);
+}
+
+// Study plan functions
+export function getStudyPlan(slug) {
+  const stmt = db.prepare('SELECT * FROM study_plans WHERE slug = ?');
+  return stmt.get(slug);
+}
+
+export function getStudyPlanProblems(planId) {
+  const stmt = db.prepare(`
+    SELECT 
+      sps.name as section_name,
+      sps.order_index as section_order,
+      p.id,
+      p.title,
+      p.leetcode_url,
+      p.difficulty,
+      spi.order_index as item_order,
+      (
+        SELECT json_group_array(
+          json_object(
+            'id', ph.id,
+            'completed_at', ph.completed_at,
+            'rating', ph.rating,
+            'notes', ph.notes
+          )
+        )
+        FROM practice_history ph
+        WHERE ph.problem_id = p.id
+        ORDER BY ph.completed_at DESC
+      ) as history
+    FROM study_plan_sections sps
+    JOIN study_plan_items spi ON sps.id = spi.section_id
+    JOIN problems p ON spi.problem_id = p.id
+    WHERE sps.plan_id = ?
+    ORDER BY sps.order_index, spi.order_index
+  `);
+  return stmt.all(planId);
+}
+
+export function insertStudyPlan(name, slug, description) {
+  const stmt = db.prepare('INSERT OR IGNORE INTO study_plans (name, slug, description) VALUES (?, ?, ?)');
+  return stmt.run(name, slug, description);
+}
+
+export function getStudyPlanBySlug(slug) {
+  const stmt = db.prepare('SELECT id FROM study_plans WHERE slug = ?');
+  return stmt.get(slug);
+}
+
+export function insertStudyPlanSection(planId, name, orderIndex) {
+  const stmt = db.prepare('INSERT OR IGNORE INTO study_plan_sections (plan_id, name, order_index) VALUES (?, ?, ?)');
+  return stmt.run(planId, name, orderIndex);
+}
+
+export function getStudyPlanSection(planId, name) {
+  const stmt = db.prepare('SELECT id FROM study_plan_sections WHERE plan_id = ? AND name = ?');
+  return stmt.get(planId, name);
+}
+
+export function insertStudyPlanItem(sectionId, problemId, orderIndex) {
+  const stmt = db.prepare('INSERT OR IGNORE INTO study_plan_items (section_id, problem_id, order_index) VALUES (?, ?, ?)');
+  return stmt.run(sectionId, problemId, orderIndex);
+}
+
+export function findProblemByUrl(url) {
+  const stmt = db.prepare('SELECT id FROM problems WHERE leetcode_url = ?');
+  return stmt.get(url);
+}
+
+export function findProblemByTitle(title) {
+  const stmt = db.prepare('SELECT id FROM problems WHERE title = ?');
+  return stmt.get(title);
 }
 
 export default db;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom'
 import TrackerPage from './pages/TrackerPage'
+import Top150Page from './pages/Top150Page'
 import ReviewPage from './pages/ReviewPage'
 import StatsPage from './pages/StatsPage'
 import './App.css'
@@ -31,6 +32,9 @@ function App() {
                 <NavLink to="/" className={({ isActive }) => isActive ? 'nav-pill active' : 'nav-pill'}>
                   <span className="nav-icon">⊞</span> Tracker
                 </NavLink>
+                <NavLink to="/top-150" className={({ isActive }) => isActive ? 'nav-pill active' : 'nav-pill'}>
+                  <span className="nav-icon">🏆</span> Top 150
+                </NavLink>
                 <NavLink to="/review" className={({ isActive }) => isActive ? 'nav-pill active' : 'nav-pill'}>
                   <span className="nav-icon">○</span> Review
                 </NavLink>
@@ -48,6 +52,7 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<TrackerPage />} />
+            <Route path="/top-150" element={<Top150Page />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/stats" element={<StatsPage />} />
           </Routes>
