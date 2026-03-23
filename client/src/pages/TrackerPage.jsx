@@ -8,6 +8,26 @@ function TrackerPage() {
   const [collapsedCategories, setCollapsedCategories] = useState({})
   const [collapsedSubcategories, setCollapsedSubcategories] = useState({})
   const [searchQuery, setSearchQuery] = useState('')
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState('')
+  const [addForm, setAddForm] = useState({
+    title: '',
+    url: '',
+    difficulty: 'Medium',
+    category: '',
+    subcategory: '',
+    newCategory: '',
+    newSubcategory: ''
+  })
+  const [inlineAddTarget, setInlineAddTarget] = useState(null)
+  const [inlineAddForm, setInlineAddForm] = useState({
+    title: '',
+    url: '',
+    difficulty: 'Medium'
+  })
+  const [inlineAddError, setInlineAddError] = useState('')
+  const [inlineAdding, setInlineAdding] = useState(false)
 
   useEffect(() => {
     fetchProblems()
@@ -28,6 +48,131 @@ function TrackerPage() {
   const handlePracticeSubmit = () => {
     fetchProblems()
     setSelectedProblem(null)
+  }
+
+  const resetAddForm = () => {
+    setAddForm({
+      title: '',
+      url: '',
+      difficulty: 'Medium',
+      category: '',
+      subcategory: '',
+      newCategory: '',
+      newSubcategory: ''
+    })
+    setAddError('')
+  }
+
+  const startInlineAdd = (categoryName, subcategoryName) => {
+    setInlineAddTarget({ categoryName, subcategoryName })
+    setInlineAddForm({ title: '', url: '', difficulty: 'Medium' })
+    setInlineAddError('')
+  }
+
+  const cancelInlineAdd = () => {
+    setInlineAddTarget(null)
+    setInlineAddForm({ title: '', url: '', difficulty: 'Medium' })
+    setInlineAddError('')
+  }
+
+  const handleAddSubmit = async (e) => {
+    e.preventDefault()
+    setAddError('')
+
+    const trimmedTitle = addForm.title.trim()
+    if (!trimmedTitle) {
+      setAddError('Title is required')
+      return
+    }
+
+    const isNewCategory = addForm.category === '__new__'
+    const isNewSubcategory = addForm.subcategory === '__new__'
+    const categoryName = isNewCategory ? addForm.newCategory.trim() : addForm.category
+    const subcategoryName = isNewSubcategory ? addForm.newSubcategory.trim() : addForm.subcategory
+
+    if (!categoryName) {
+      setAddError('Category is required')
+      return
+    }
+
+    const payload = {
+      title: trimmedTitle,
+      leetcode_url: addForm.url.trim() || null,
+      difficulty: addForm.difficulty,
+      category_name: categoryName,
+      subcategory_name: subcategoryName || 'General'
+    }
+
+    setAdding(true)
+    try {
+      const response = await fetch('http://localhost:3001/api/problems', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        setAddError(errorData.error || 'Failed to add problem')
+        return
+      }
+
+      await fetchProblems()
+      resetAddForm()
+      setShowAddForm(false)
+    } catch (error) {
+      console.error('Error adding problem:', error)
+      setAddError('Failed to add problem')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleInlineAddSubmit = async (e) => {
+    e.preventDefault()
+    if (!inlineAddTarget) return
+
+    setInlineAddError('')
+    const trimmedTitle = inlineAddForm.title.trim()
+    if (!trimmedTitle) {
+      setInlineAddError('Title is required')
+      return
+    }
+
+    const payload = {
+      title: trimmedTitle,
+      leetcode_url: inlineAddForm.url.trim() || null,
+      difficulty: inlineAddForm.difficulty,
+      category_name: inlineAddTarget.categoryName,
+      subcategory_name: inlineAddTarget.subcategoryName
+    }
+
+    setInlineAdding(true)
+    try {
+      const response = await fetch('http://localhost:3001/api/problems', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        setInlineAddError(errorData.error || 'Failed to add problem')
+        return
+      }
+
+      await fetchProblems()
+      cancelInlineAdd()
+    } catch (error) {
+      console.error('Error adding problem:', error)
+      setInlineAddError('Failed to add problem')
+    } finally {
+      setInlineAdding(false)
+    }
   }
 
   // Toggle category collapse
@@ -83,6 +228,10 @@ function TrackerPage() {
   }
 
   const filteredProblems = getFilteredProblems()
+  const categoryOptions = Object.keys(problems)
+  const subcategoryOptions = addForm.category && addForm.category !== '__new__'
+    ? Object.keys(problems[addForm.category] || {})
+    : []
 
   if (loading) {
     return <div className="loading">Loading problems...</div>
@@ -101,7 +250,8 @@ function TrackerPage() {
       </div>
 
       <div className="search-container">
-        <div className="search-box">
+        <div className="search-header">
+          <div className="search-box">
           <span className="search-icon">🔍</span>
           <input
             type="text"
@@ -120,6 +270,19 @@ function TrackerPage() {
             </button>
           )}
         </div>
+          <button
+            type="button"
+            className="add-problem-toggle"
+            onClick={() => {
+              setShowAddForm(!showAddForm)
+              if (showAddForm) {
+                resetAddForm()
+              }
+            }}
+          >
+            {showAddForm ? 'Close' : '+ Add a Problem'}
+          </button>
+        </div>
         {searchQuery && (
           <div className="search-results-count">
             {Object.values(filteredProblems).reduce((total, subcats) => 
@@ -128,6 +291,112 @@ function TrackerPage() {
           </div>
         )}
       </div>
+
+      {showAddForm && (
+        <form className="add-problem-form" onSubmit={handleAddSubmit}>
+          <div className="add-form-row">
+            <input
+              type="text"
+              className="add-input"
+              placeholder="Problem title"
+              value={addForm.title}
+              onChange={(e) => setAddForm(prev => ({ ...prev, title: e.target.value }))}
+            />
+            <input
+              type="text"
+              className="add-input"
+              placeholder="LeetCode URL (optional)"
+              value={addForm.url}
+              onChange={(e) => setAddForm(prev => ({ ...prev, url: e.target.value }))}
+            />
+            <select
+              className="add-select"
+              value={addForm.difficulty}
+              onChange={(e) => setAddForm(prev => ({ ...prev, difficulty: e.target.value }))}
+            >
+              <option value="Easy">Easy</option>
+              <option value="Medium">Medium</option>
+              <option value="Hard">Hard</option>
+            </select>
+          </div>
+
+          <div className="add-form-row">
+            <select
+              className="add-select"
+              value={addForm.category}
+              onChange={(e) => {
+                const value = e.target.value
+                setAddForm(prev => ({
+                  ...prev,
+                  category: value,
+                  subcategory: '',
+                  newSubcategory: '',
+                  newCategory: value === '__new__' ? prev.newCategory : ''
+                }))
+              }}
+            >
+              <option value="">Select category</option>
+              {categoryOptions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+              <option value="__new__">+ New category</option>
+            </select>
+
+            {addForm.category === '__new__' && (
+              <input
+                type="text"
+                className="add-input"
+                placeholder="New category name"
+                value={addForm.newCategory}
+                onChange={(e) => setAddForm(prev => ({ ...prev, newCategory: e.target.value }))}
+              />
+            )}
+
+            {addForm.category && addForm.category !== '__new__' && (
+              <select
+                className="add-select"
+                value={addForm.subcategory}
+                onChange={(e) => setAddForm(prev => ({ ...prev, subcategory: e.target.value }))}
+              >
+                <option value="">Select subcategory (optional)</option>
+                {subcategoryOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+                <option value="__new__">+ New subcategory</option>
+              </select>
+            )}
+
+            {(addForm.subcategory === '__new__' || addForm.category === '__new__') && (
+              <input
+                type="text"
+                className="add-input"
+                placeholder="New subcategory name (defaults to General)"
+                value={addForm.newSubcategory}
+                onChange={(e) => setAddForm(prev => ({ ...prev, newSubcategory: e.target.value }))}
+              />
+            )}
+          </div>
+
+          {addError && <div className="add-error">{addError}</div>}
+
+          <div className="add-form-actions">
+            <button className="add-submit" type="submit" disabled={adding}>
+              {adding ? 'Adding...' : 'Add problem'}
+            </button>
+            <button
+              className="add-cancel"
+              type="button"
+              onClick={() => {
+                resetAddForm()
+                setShowAddForm(false)
+              }}
+              disabled={adding}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="categories-grid">
         {Object.entries(filteredProblems).map(([categoryName, subcategories]) => (
@@ -151,17 +420,83 @@ function TrackerPage() {
                   const subcategoryKey = `${categoryName}::${subcategoryName}`
                   const isSubcategoryCollapsed = collapsedSubcategories[subcategoryKey]
                   const showSubcategoryLabel = subcategoryName !== 'General' && subcategoryName !== categoryName
-                  
+                  const isInlineOpen =
+                    inlineAddTarget?.categoryName === categoryName &&
+                    inlineAddTarget?.subcategoryName === subcategoryName
+                   
                   return (
                     <div key={subcategoryName} className="subcategory-section">
-                      {showSubcategoryLabel && (
-                        <div 
-                          className="subcategory-label clickable"
-                          onClick={() => toggleSubcategory(categoryName, subcategoryName)}
-                        >
-                          <span className={`collapse-icon small ${isSubcategoryCollapsed ? 'collapsed' : ''}`}>▼</span>
-                          {subcategoryName}
+                      <div className="subcategory-header">
+                        {showSubcategoryLabel ? (
+                          <div 
+                            className="subcategory-label clickable"
+                            onClick={() => toggleSubcategory(categoryName, subcategoryName)}
+                          >
+                            <span className={`collapse-icon small ${isSubcategoryCollapsed ? 'collapsed' : ''}`}>▼</span>
+                            {subcategoryName}
+                          </div>
+                        ) : (
+                          <div className="subcategory-label">General</div>
+                        )}
+                        <div className="subcategory-actions">
+                          <button
+                            type="button"
+                            className="subcategory-add-button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (isInlineOpen) {
+                                cancelInlineAdd()
+                              } else {
+                                startInlineAdd(categoryName, subcategoryName)
+                              }
+                            }}
+                          >
+                            {isInlineOpen ? 'Close' : '+ Add problem'}
+                          </button>
                         </div>
+                      </div>
+                      {isInlineOpen && (
+                        <form className="inline-add-form" onSubmit={handleInlineAddSubmit}>
+                          <div className="inline-add-row">
+                            <input
+                              type="text"
+                              className="add-input"
+                              placeholder="Problem title"
+                              value={inlineAddForm.title}
+                              onChange={(e) => setInlineAddForm(prev => ({ ...prev, title: e.target.value }))}
+                            />
+                            <input
+                              type="text"
+                              className="add-input"
+                              placeholder="LeetCode URL (optional)"
+                              value={inlineAddForm.url}
+                              onChange={(e) => setInlineAddForm(prev => ({ ...prev, url: e.target.value }))}
+                            />
+                            <select
+                              className="add-select"
+                              value={inlineAddForm.difficulty}
+                              onChange={(e) => setInlineAddForm(prev => ({ ...prev, difficulty: e.target.value }))}
+                            >
+                              <option value="Easy">Easy</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Hard">Hard</option>
+                            </select>
+                          </div>
+                          {inlineAddError && <div className="inline-add-error">{inlineAddError}</div>}
+                          <div className="inline-add-actions">
+                            <button className="add-submit" type="submit" disabled={inlineAdding}>
+                              {inlineAdding ? 'Adding...' : 'Add'}
+                            </button>
+                            <button
+                              className="add-cancel"
+                              type="button"
+                              onClick={cancelInlineAdd}
+                              disabled={inlineAdding}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
                       )}
                       {!isSubcategoryCollapsed && (
                         <div className="problems-list">

@@ -187,6 +187,50 @@ body {
   background: var(--nav-pill-active-bg);
 }
 
+.import-list-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  padding: 0.45rem 0.8rem;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.import-list-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.custom-list-pill {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.nav-feedback {
+  max-width: 1400px;
+  margin: 0.5rem auto 0;
+  padding: 0 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.nav-feedback.success {
+  color: #e0f2fe;
+}
+
+.nav-feedback.error {
+  color: #fee2e2;
+}
+
 /* ==================== MAIN CONTENT ==================== */
 .main-content {
   flex: 1;
@@ -1278,6 +1322,11 @@ body {
   .nav-links {
     flex: 1;
     justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .custom-list-pill {
+    max-width: 130px;
   }
 
   .categories-grid {
@@ -1379,4 +1428,79 @@ body {
   border-radius: 6px;
   background: var(--bg-tertiary);
   color: var(--text-link);
+}
+
+.imported-list-header {
+  cursor: default;
+}
+
+.imported-list-header:hover {
+  background: var(--bg-primary);
+}
+
+.imported-problems-list {
+  gap: 0;
+}
+
+.imported-problem-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.imported-problem-link:last-child {
+  border-bottom: none;
+}
+
+.imported-problem-link:hover {
+  background: var(--bg-tertiary);
+}
+
+.imported-link-pill {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-link);
+  background: rgba(79, 70, 229, 0.12);
+  border-radius: var(--radius-full);
+  padding: 0.22rem 0.6rem;
+  white-space: nowrap;
+}
+
+.imported-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.difficulty-Unknown {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.imported-empty-state {
+  padding: 2rem 1rem;
+}
+
+.imported-header-actions {
+  margin-top: 0.75rem;
+}
+
+.remove-list-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.remove-list-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
 }

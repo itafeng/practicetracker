@@ -1,4 +1,4 @@
-# 🎯 LeetCode Practice Tracker
+# 🎯 Interview Practice Tracker
 
 A comprehensive web application to help you practice LeetCode problems with spaced repetition and detailed progress tracking.
 
@@ -13,6 +13,41 @@ A comprehensive web application to help you practice LeetCode problems with spac
 - Add notes for each practice session
 - View complete practice history for each problem
 - Multiple attempts tracked with timestamps
+
+### 📥 Custom List Import
+- Import your own problem sets from JSON using the top navigation `Import List` action
+- Imported lists appear as dedicated tabs in the top menu (before Review)
+- Imported problems are grouped by Category in collapsible sections (similar to Top 150)
+- Category and Difficulty are optional on each imported problem
+- Missing Category defaults to `Uncategorized`
+- Remove an imported list directly from its page using `Remove List`
+
+Supported JSON format:
+
+```json
+{
+   "Problem List Name": "NeetCode 150",
+   "Problems": [
+      {
+         "Problem Name": "Walls and Gates",
+         "Category": "Graphs",
+         "Difficulty": "Medium",
+         "Url": "https://leetcode.com/problems/walls-and-gates"
+      }
+   ]
+}
+```
+
+Alternate supported format:
+
+```json
+{
+   "Problem List Name": "My List",
+   "Problems": {
+      "Two Sum": "https://leetcode.com/problems/two-sum/"
+   }
+}
+```
 
 ### 🔄 Review Schedule (Spaced Repetition)
 Problems automatically categorized based on the forgetting curve:
@@ -81,7 +116,9 @@ leetpractice/
 │   │   │   └── ProblemCard.jsx
 │   │   ├── pages/         # Page components
 │   │   │   ├── TrackerPage.jsx
+│   │   │   ├── Top150Page.jsx
 │   │   │   ├── ReviewPage.jsx
+│   │   │   ├── ImportedListPage.jsx
 │   │   │   └── StatsPage.jsx
 │   │   ├── App.jsx        # Main app with routing
 │   │   ├── App.css        # Styles
@@ -93,7 +130,8 @@ leetpractice/
 ├── data/                 # Seed data
 │   ├── seed.js          # Main seeding script
 │   ├── seed-part1.js    # Problem data (Part 1)
-│   └── seed-part2.js    # Problem data (Part 2)
+│   ├── seed-part2.js    # Problem data (Part 2)
+│   └── seed-top150.js   # Top Interview 150 data
 ├── database/            # SQLite database storage
 │   └── leetcode.db
 └── package.json         # Backend dependencies
